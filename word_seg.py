@@ -2,10 +2,19 @@
 
 import re
 import numpy as np
+import os
+import tensorflow as tf
+print("tf.__version__: ", tf.__version__)
 
 
-sents = open('../icwb2-data/training/msr_training.utf8').read()
-sents = sents.decode('utf-8').strip()
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1" 
+if os.environ.get('CUDA_VISIBLE_DEVICES') != "-1":
+    # 设定 GPU 显存占用比例为 0.3
+    config = tf.compat.v1.ConfigProto()  # 兼容tf2
+    config.gpu_options.per_process_gpu_memory_fraction = 0.4
+
+
+sents = open('logs/dataset/icwb2-data/training/msr_training.utf8', 'r', encoding='utf8').read()
 sents = sents.split('\r\n') # 这个语料的换行符是\r\n
 
 sents = [re.split(' +', s) for s in sents] # 词之间以空格隔开
@@ -94,6 +103,47 @@ def max_in_dict(d): # 定义一个求字典中最大值的函数
     return key,value
 
 
+
+# 矩阵实现
+class ViterbiDecoder(object):
+    """Viterbi解码算法基类
+    """
+    def __init__(self, trans, starts=None, ends=None):
+        self.trans = trans
+        self.num_labels = len(trans)
+        self.non_starts = []
+        self.non_ends = []
+        if starts is not None:
+            for i in range(self.num_labels):
+                if i not in starts:
+                    self.non_starts.append(i)
+        if ends is not None:
+            for i in range(self.num_labels):
+                if i not in ends:
+                    self.non_ends.append(i)
+
+    def decode(self, nodes):
+        """nodes.shape=[seq_len, num_labels]
+        """
+        # 预处理
+        nodes[0, self.non_starts] -= np.inf
+        nodes[-1, self.non_ends] -= np.inf
+
+        # 动态规划
+        labels = np.arange(self.num_labels).reshape((1, -1))
+        scores = nodes[0].reshape((-1, 1))
+        paths = labels
+        for l in range(1, len(nodes)):
+            M = scores + self.trans + nodes[l].reshape((1, -1))
+            idxs = M.argmax(0)
+            scores = M.max(0).reshape((-1, 1))
+            paths = np.concatenate([paths[:, idxs], labels], 0)
+
+        # 最优路径
+        return paths[:, scores[:, 0].argmax()]
+
+
+
 def viterbi(nodes, trans): # viterbi算法，跟前面的HMM一致
     paths = nodes[0] # 初始化起始路径
     for l in range(1, len(nodes)): # 遍历后面的节点
@@ -152,7 +202,7 @@ class Evaluate(Callback):
         acc = right/total
         if acc > self.highest:
             self.highest = acc
-        print 'val acc: %s, highest: %s'%(acc, self.highest)
+        print ('val acc: %s, highest: %s'%(acc, self.highest))
 
 
 evaluator = Evaluate() # 建立Callback类
