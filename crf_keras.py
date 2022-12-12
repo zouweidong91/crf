@@ -72,6 +72,14 @@ class CRF(Layer):
                         [0, 0, 0, 1]]]])>
 
         tf.einsum更简洁实现见bert4keras源码
+
+        a = np.array([0,0,0,1])
+        b = np.array([0,0,1,0]).reshape((4,1))
+        a*b: 1对应转移矩阵中所在位置
+            array([[0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 1],
+                [0, 0, 0, 0]])
         """
         point_score = K.sum(K.sum(inputs * labels, 2), 1, keepdims=True)  # 逐标签得分  点乘， 
         labels1 = K.expand_dims(labels[:, :-1], 3)  # 中华人民共和  (2, 2, 4, 1)
